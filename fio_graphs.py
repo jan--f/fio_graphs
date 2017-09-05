@@ -2,8 +2,9 @@
 
 import argparse
 import json
-import os
 import pprint
+import os
+import sys
 
 import pandas
 import numpy as np
@@ -57,10 +58,25 @@ class FioResults(object):
                 print('IGNORING file {}, contains no valid JSON'.format(path))
 
     def get_aggregate_bw(self):
+        if not self.data['results']:
+            print('ERROR...no data found.')
+            sys.exit()
+
+        if 'jobs' in self.data['results'][0]:
+            result_key = 'jobs'
+
+        if 'client_stats' in self.data['results'][0]:
+            result_key = 'client_stats'
+
         d = {job['jobname']: {'read': 0, 'write': 0}
-             for job in self.data['results'][0]['jobs']}
+             for job in self.data['results'][0][result_key]}
+        # remove 'All clients' if present
+        d.pop('All clients', None)
         for result in self.data['results']:
-            for job in result['jobs']:
+            for job in result[result_key]:
+                # Skip 'All clients' if present
+                if job['jobname'] == 'All clients':
+                    continue
                 d[job['jobname']]['read'] += job['read']['bw']
                 d[job['jobname']]['write'] += job['write']['bw']
         return pandas.DataFrame(data={
