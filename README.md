@@ -1,4 +1,4 @@
-# fio_plot
+# fio_graphs
 Plot fio results with matplotlib.
 
 ## Requirements
