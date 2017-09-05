@@ -12,13 +12,13 @@ plt.style.use('ggplot')
 
 
 def get_arg_parser():
-    p = argparse.ArgumentParser(description=('Create graphs from various fio ',
-                                             'json outputs'))
+    p = argparse.ArgumentParser(
+        description='Create graphs from various fio json outputs')
     p.add_argument('path', help='Source path for fio output')
-    p.add_argument('-d', '--dir', action="store_true",
-                   help=('Read output files from a ',
-                         'directory and consider files ',
-                         'to be of the same run'))
+    p.add_argument(
+        '-d',
+        '--dir', action="store_true",
+        help='Read output files from a directory and consider files to be of the same run')
     p.add_argument('-o', '--output', help='output directory for graphs',
                    default='graphs')
     return p
