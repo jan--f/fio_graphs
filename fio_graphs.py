@@ -89,8 +89,8 @@ class FioResults(object):
             len(self.data['results'])))
         # adjust xscale if stacked is > 1000000 or so
         plt.xticks(ind, dframe.name, rotation=45)
-        plt.legend((bar1[0], bar2[0]),
-                   ('read', 'write')).get_frame().set_facecolor('#FFFFFF')
+        plt.legend((bar2[0], bar1[0]),
+                   ('write', 'read')).get_frame().set_facecolor('#FFFFFF')
         plt.savefig('{}/bw.png'.format(self.args.output), bbox_inches='tight')
 
 
