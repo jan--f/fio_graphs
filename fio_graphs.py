@@ -74,8 +74,19 @@ class FioResults(object):
     def aggregate_bw_graph(self):
         dframe = self.get_aggregate_bw()
         ind = np.arange(dframe.index.size)
-        bar1 = plt.bar(ind, dframe.read, self.b_width)
-        bar2 = plt.bar(ind, dframe.write, self.b_width, bottom=dframe.read)
+        if max(dframe.read) + max(dframe.write) > 9900000:
+            b1_data = dframe.read / 1024
+            b2_data = dframe.write / 1024
+            plt.ylabel('Bandwidth (MiB/s)')
+        else:
+            b1_data = dframe.read
+            b2_data = dframe.write
+            plt.ylabel('Bandwidth (KiB/s)')
+
+        bar1 = plt.bar(ind, b1_data, self.b_width)
+        bar2 = plt.bar(ind, b2_data, self.b_width, bottom=b1_data)
+        plt.title('Aggregated bandwidth over {} clients'.format(
+            len(self.data['results'])))
         # adjust xscale if stacked is > 1000000 or so
         plt.xticks(ind, dframe.name, rotation=45)
         plt.legend((bar1[0], bar2[0]),
