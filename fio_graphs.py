@@ -36,6 +36,7 @@ class FioResults(object):
             'directory': self.args.dir
         }
         os.makedirs(self.args.output, exist_ok=True)
+        self.cache = {}
 
     def parse_data(self):
         if self.args.dir:
@@ -57,7 +58,7 @@ class FioResults(object):
             except ValueError:
                 print('IGNORING file {}, contains no valid JSON'.format(path))
 
-    def get_aggregate_bw(self):
+    def _aggregate_data(self):
         if not self.data['results']:
             print('ERROR...no data found.')
             sys.exit()
@@ -68,7 +69,10 @@ class FioResults(object):
         if 'client_stats' in self.data['results'][0]:
             result_key = 'client_stats'
 
-        d = {job['jobname']: {'read': 0, 'write': 0}
+        d = {job['jobname']: {'read': 0,
+                              'write': 0,
+                              'r_iops': 0,
+                              'w_iops': 0}
              for job in self.data['results'][0][result_key]}
         # remove 'All clients' if present
         d.pop('All clients', None)
@@ -79,13 +83,30 @@ class FioResults(object):
                     continue
                 d[job['jobname']]['read'] += job['read']['bw']
                 d[job['jobname']]['write'] += job['write']['bw']
-        return pandas.DataFrame(data={
+                d[job['jobname']]['r_iops'] += job['read']['iops']
+                d[job['jobname']]['w_iops'] += job['write']['iops']
+        self.cache['bw'] = pandas.DataFrame(data={
             'name': [k for k in d.keys()],
             'read': [v['read'] for v in d.values()],
             'write': [v['write'] for v in d.values()]})
+        self.cache['iops'] = pandas.DataFrame(data={
+            'name': [k for k in d.keys()],
+            'read': [v['r_iops'] for v in d.values()],
+            'write': [v['w_iops'] for v in d.values()]})
+
+    def get_aggregate_bw(self):
+        if not 'bw' in self.cache:
+            self._aggregate_data()
+        return self.cache['bw']
+
+    def get_aggregate_iops(self):
+        if not 'iops' in self.cache:
+            self._aggregate_data()
+        return self.cache['iops']
 
     def print(self):
         pprint.pprint(self.get_aggregate_bw())
+        pprint.pprint(self.get_aggregate_iops())
 
     def aggregate_bw_graph(self):
         dframe = self.get_aggregate_bw()
@@ -109,6 +130,27 @@ class FioResults(object):
                    ('write', 'read')).get_frame().set_facecolor('#FFFFFF')
         plt.savefig('{}/bw.png'.format(self.args.output), bbox_inches='tight')
 
+    def aggregate_iops_graph(self):
+        dframe = self.get_aggregate_iops()
+        ind = np.arange(dframe.index.size)
+        if max(dframe.read) + max(dframe.write) > 9900000:
+            b1_data = dframe.read / 1024
+            b2_data = dframe.write / 1024
+        else:
+            b1_data = dframe.read
+            b2_data = dframe.write
+        plt.ylabel('IOPS')
+
+        bar1 = plt.bar(ind, b1_data, self.b_width)
+        bar2 = plt.bar(ind, b2_data, self.b_width, bottom=b1_data)
+        plt.title('Aggregated IOPS over {} clients'.format(
+            len(self.data['results'])))
+        # adjust xscale if stacked is > 1000000 or so
+        plt.xticks(ind, dframe.name, rotation=45)
+        plt.legend((bar2[0], bar1[0]),
+                   ('write', 'read')).get_frame().set_facecolor('#FFFFFF')
+        plt.savefig('{}/iops.png'.format(self.args.output), bbox_inches='tight')
+
 
 def get_fio(path):
     return FioResults(argparse.Namespace(directory=True, path=path))
@@ -131,6 +173,7 @@ def main():
     results.parse_data()
     results.print()
     results.aggregate_bw_graph()
+    results.aggregate_iops_graph()
 
 
 if __name__ == "__main__":
