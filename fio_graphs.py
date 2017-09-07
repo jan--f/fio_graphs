@@ -72,7 +72,11 @@ class FioResults(object):
         d = {job['jobname']: {'read': 0,
                               'write': 0,
                               'r_iops': 0,
-                              'w_iops': 0}
+                              'w_iops': 0,
+                              'lat_us': {},
+                              'lat_ms': {},
+                              'count': 0,
+                             }
              for job in self.data['results'][0][result_key]}
         # remove 'All clients' if present
         d.pop('All clients', None)
@@ -81,10 +85,28 @@ class FioResults(object):
                 # Skip 'All clients' if present
                 if job['jobname'] == 'All clients':
                     continue
+                if job['error'] is not 0:
+                    print('job {} reported an error...skipping'.format(
+                        job['jobname']
+                    ))
+                    continue
+
+                d[job['jobname']]['count'] += 1
                 d[job['jobname']]['read'] += job['read']['bw']
                 d[job['jobname']]['write'] += job['write']['bw']
                 d[job['jobname']]['r_iops'] += job['read']['iops']
                 d[job['jobname']]['w_iops'] += job['write']['iops']
+                for k, v in job['latency_us'].items():
+                    if k in d[job['jobname']]['lat_us']:
+                        d[job['jobname']]['lat_us'][k] += job['latency_us'][k]
+                    else:
+                        d[job['jobname']]['lat_us'][k] = job['latency_us'][k]
+                for k, v in job['latency_ms'].items():
+                    if k in d[job['jobname']]['lat_ms']:
+                        d[job['jobname']]['lat_ms'][k] += job['latency_ms'][k]
+                    else:
+                        d[job['jobname']]['lat_ms'][k] = job['latency_ms'][k]
+
         self.cache['bw'] = pandas.DataFrame(data={
             'name': [k for k in d.keys()],
             'read': [v['read'] for v in d.values()],
@@ -93,6 +115,22 @@ class FioResults(object):
             'name': [k for k in d.keys()],
             'read': [v['r_iops'] for v in d.values()],
             'write': [v['w_iops'] for v in d.values()]})
+        lat_data = {
+            'name': [k for k in d.keys()],
+        }
+        for name in d.keys():
+            for k, v in d[name]['lat_us'].items():
+                if k in lat_data:
+                    lat_data[k].append(v)
+                else:
+                    lat_data[k] = [v]
+            for k, v in d[name]['lat_ms'].items():
+                k += '000'
+                if k in lat_data:
+                    lat_data[k].append(v)
+                else:
+                    lat_data[k] = [v]
+        self.cache['lat_dist'] = pandas.DataFrame(data=lat_data)
 
     def get_aggregate_bw(self):
         if not 'bw' in self.cache:
@@ -104,8 +142,18 @@ class FioResults(object):
             self._aggregate_data()
         return self.cache['iops']
 
-    def print(self):
+    def get_aggregate_lat_dist(self):
+        if not 'lat_dist' in self.cache:
+            self._aggregate_data()
+        return self.cache['lat_dist']
+
+    def print_(self):
+        lats = self.get_aggregate_lat_dist()
+        print('aggregate latency distribution')
+        pprint.pprint(lats)
+        print('aggregate bandwidth')
         pprint.pprint(self.get_aggregate_bw())
+        print('aggregate iops')
         pprint.pprint(self.get_aggregate_iops())
 
     def aggregate_bw_graph(self):
@@ -153,9 +201,31 @@ class FioResults(object):
                    ('write', 'read')).get_frame().set_facecolor('#FFFFFF')
         plt.savefig('{}/iops_aggr.png'.format(self.args.output), bbox_inches='tight')
 
+    def aggregate_lat_dist_graph(self):
+        plt.clf()
+        dframe = self.get_aggregate_lat_dist()
+        ind = np.arange(dframe.index.size)
+        if max(dframe.read) + max(dframe.write) > 9900000:
+            b1_data = dframe.read / 1024
+            b2_data = dframe.write / 1024
+        else:
+            b1_data = dframe.read
+            b2_data = dframe.write
+        plt.ylabel('IOPS')
+
+        bar1 = plt.bar(ind, b1_data, self.b_width)
+        bar2 = plt.bar(ind, b2_data, self.b_width, bottom=b1_data)
+        plt.title('Aggregated IOPS over {} clients'.format(
+            len(self.data['results'])))
+        # adjust xscale if stacked is > 1000000 or so
+        plt.xticks(ind, dframe.name, rotation=45)
+        plt.legend((bar2[0], bar1[0]),
+                   ('write', 'read')).get_frame().set_facecolor('#FFFFFF')
+        plt.savefig('{}/iops_aggr.png'.format(self.args.output), bbox_inches='tight')
+
 
 def get_fio(path):
-    return FioResults(argparse.Namespace(directory=True, path=path))
+    return FioResults(argparse.Namespace(dir=True, path=path, output='graphs'))
 
 
 def main():
@@ -173,7 +243,7 @@ def main():
 
     results = FioResults(args)
     results.parse_data()
-    results.print()
+    results.print_()
     results.aggregate_bw_graph()
     results.aggregate_iops_graph()
 
