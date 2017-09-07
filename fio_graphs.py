@@ -109,6 +109,7 @@ class FioResults(object):
         pprint.pprint(self.get_aggregate_iops())
 
     def aggregate_bw_graph(self):
+        plt.clf()
         dframe = self.get_aggregate_bw()
         ind = np.arange(dframe.index.size)
         if max(dframe.read) + max(dframe.write) > 9900000:
@@ -128,9 +129,10 @@ class FioResults(object):
         plt.xticks(ind, dframe.name, rotation=45)
         plt.legend((bar2[0], bar1[0]),
                    ('write', 'read')).get_frame().set_facecolor('#FFFFFF')
-        plt.savefig('{}/bw.png'.format(self.args.output), bbox_inches='tight')
+        plt.savefig('{}/bw_aggr.png'.format(self.args.output), bbox_inches='tight')
 
     def aggregate_iops_graph(self):
+        plt.clf()
         dframe = self.get_aggregate_iops()
         ind = np.arange(dframe.index.size)
         if max(dframe.read) + max(dframe.write) > 9900000:
@@ -149,7 +151,7 @@ class FioResults(object):
         plt.xticks(ind, dframe.name, rotation=45)
         plt.legend((bar2[0], bar1[0]),
                    ('write', 'read')).get_frame().set_facecolor('#FFFFFF')
-        plt.savefig('{}/iops.png'.format(self.args.output), bbox_inches='tight')
+        plt.savefig('{}/iops_aggr.png'.format(self.args.output), bbox_inches='tight')
 
 
 def get_fio(path):
