@@ -115,21 +115,19 @@ class FioResults(object):
             'name': [k for k in d.keys()],
             'read': [v['r_iops'] for v in d.values()],
             'write': [v['w_iops'] for v in d.values()]})
-        lat_data = {
-            'name': [k for k in d.keys()],
-        }
+        lat_data = {'lats': list(d[next(iter(d))]['lat_us'].keys())
+                    + [k + '000' for k in d[next(iter(d))]['lat_ms'].keys()]}
         for name in d.keys():
-            for k, v in d[name]['lat_us'].items():
-                if k in lat_data:
-                    lat_data[k].append(v)
-                else:
-                    lat_data[k] = [v]
-            for k, v in d[name]['lat_ms'].items():
-                k += '000'
-                if k in lat_data:
-                    lat_data[k].append(v)
-                else:
-                    lat_data[k] = [v]
+            # TODO don't use values (eliminates duplicates?) but iterate over
+            # the keys
+            c = []
+            for k in d[name]['lat_us'].keys():
+                c.append(d[name]['lat_us'][k])
+            for k in d[name]['lat_ms'].keys():
+                c.append(d[name]['lat_ms'][k])
+            lat_data[name] = c
+        srt_fct = lambda x: int(str.lstrip(x, '>='))
+        print(sorted(lat_data['lats'], key=srt_fct))
         self.cache['lat_dist'] = pandas.DataFrame(data=lat_data)
 
     def get_aggregate_bw(self):
@@ -204,24 +202,33 @@ class FioResults(object):
     def aggregate_lat_dist_graph(self):
         plt.clf()
         dframe = self.get_aggregate_lat_dist()
-        ind = np.arange(dframe.index.size)
-        if max(dframe.read) + max(dframe.write) > 9900000:
-            b1_data = dframe.read / 1024
-            b2_data = dframe.write / 1024
-        else:
-            b1_data = dframe.read
-            b2_data = dframe.write
-        plt.ylabel('IOPS')
+        ind = np.arange(dframe['lats'].size)
+        # if max(dframe.read) + max(dframe.write) > 9900000:
+        #     b1_data = dframe.read / 1024
+        #     b2_data = dframe.write / 1024
+        # else:
+        #     b1_data = dframe.read
+        #     b2_data = dframe.write
+        # plt.ylabel('IOPS')
 
-        bar1 = plt.bar(ind, b1_data, self.b_width)
-        bar2 = plt.bar(ind, b2_data, self.b_width, bottom=b1_data)
-        plt.title('Aggregated IOPS over {} clients'.format(
+
+        plt.title('Aggregated latencyc distribution over {} clients'.format(
             len(self.data['results'])))
-        # adjust xscale if stacked is > 1000000 or so
-        plt.xticks(ind, dframe.name, rotation=45)
-        plt.legend((bar2[0], bar1[0]),
-                   ('write', 'read')).get_frame().set_facecolor('#FFFFFF')
-        plt.savefig('{}/iops_aggr.png'.format(self.args.output), bbox_inches='tight')
+        def srt_fct (e):
+            if not e[0].isdigit():
+                return int(e.lstrip('>=')) + 1
+            else:
+                return int(e)
+        dframe['sort'] = dframe['lats'].apply(srt_fct)
+        d = dframe.sort_values(by='sort')
+        # d = dframe.reindex(sorted(dframe.lats, key=srt_fct))
+        pprint.pprint(d.iloc[:, :-2])
+        for c in d.iloc[:, :-2]:
+            plt.plot(ind, d[c])
+        plt.xticks(ind, d.columns[-2], rotation=45)
+        # plt.legend((bar2[0], bar1[0]),
+        #            ('write', 'read')).get_frame().set_facecolor('#FFFFFF')
+        plt.savefig('{}/lat_dist.png'.format(self.args.output), bbox_inches='tight')
 
 
 def get_fio(path):
@@ -246,6 +253,7 @@ def main():
     results.print_()
     results.aggregate_bw_graph()
     results.aggregate_iops_graph()
+    results.aggregate_lat_dist_graph()
 
 
 if __name__ == "__main__":
