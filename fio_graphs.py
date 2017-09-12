@@ -29,7 +29,7 @@ class FioResults(object):
 
     def __init__(self, args):
         # two parsing modes: single file, dir with files to aggregate
-        self.b_width = 0.35
+        self.b_width = 0.15
         self.args = args
         self.data = {
             'results': [],
@@ -63,24 +63,13 @@ class FioResults(object):
             print('ERROR...no data found.')
             sys.exit()
 
-        if 'jobs' in self.data['results'][0]:
-            result_key = 'jobs'
-
-        if 'client_stats' in self.data['results'][0]:
-            result_key = 'client_stats'
-
-        d = {job['jobname']: {'read': 0,
-                              'write': 0,
-                              'r_iops': 0,
-                              'w_iops': 0,
-                              'lat_us': {},
-                              'lat_ms': {},
-                              'count': 0,
-                             }
-             for job in self.data['results'][0][result_key]}
-        # remove 'All clients' if present
-        d.pop('All clients', None)
+        d = {}
         for result in self.data['results']:
+            if 'jobs' in result[0]:
+                result_key = 'jobs'
+            elif 'client_stats' in result[0]:
+                result_key = 'client_stats'
+
             for job in result[result_key]:
                 # Skip 'All clients' if present
                 if job['jobname'] == 'All clients':
@@ -90,6 +79,14 @@ class FioResults(object):
                         job['jobname']
                     ))
                     continue
+                if job['jobname'] not in d:
+                    d['jobname'] = {'read': 0,
+                                    'write': 0,
+                                    'r_iops': 0,
+                                    'w_iops': 0,
+                                    'lat_us': {},
+                                    'lat_ms': {},
+                                    'count': 0}
 
                 d[job['jobname']]['count'] += 1
                 d[job['jobname']]['read'] += job['read']['bw']
@@ -122,9 +119,9 @@ class FioResults(object):
             # the keys
             c = []
             for k in d[name]['lat_us'].keys():
-                c.append(d[name]['lat_us'][k])
+                c.append(d[name]['lat_us'][k] / d[name]['count'])
             for k in d[name]['lat_ms'].keys():
-                c.append(d[name]['lat_ms'][k])
+                c.append(d[name]['lat_ms'][k] / d[name]['count'])
             lat_data[name] = c
         srt_fct = lambda x: int(str.lstrip(x, '>='))
         print(sorted(lat_data['lats'], key=srt_fct))
@@ -172,9 +169,11 @@ class FioResults(object):
         plt.title('Aggregated bandwidth over {} clients'.format(
             len(self.data['results'])))
         # adjust xscale if stacked is > 1000000 or so
-        plt.xticks(ind, dframe.name, rotation=45)
+        plt.xticks(ind, dframe.name, rotation=90)
         plt.legend((bar2[0], bar1[0]),
                    ('write', 'read')).get_frame().set_facecolor('#FFFFFF')
+        fig = plt.gcf()
+        fig.set_size_inches(16, 9)
         plt.savefig('{}/bw_aggr.png'.format(self.args.output), bbox_inches='tight')
 
     def aggregate_iops_graph(self):
@@ -194,25 +193,22 @@ class FioResults(object):
         plt.title('Aggregated IOPS over {} clients'.format(
             len(self.data['results'])))
         # adjust xscale if stacked is > 1000000 or so
-        plt.xticks(ind, dframe.name, rotation=45)
+        plt.xticks(ind, dframe.name, rotation=90)
         plt.legend((bar2[0], bar1[0]),
                    ('write', 'read')).get_frame().set_facecolor('#FFFFFF')
+        fig = plt.gcf()
+        fig.set_size_inches(16, 9)
         plt.savefig('{}/iops_aggr.png'.format(self.args.output), bbox_inches='tight')
 
     def aggregate_lat_dist_graph(self):
         plt.clf()
         dframe = self.get_aggregate_lat_dist()
         ind = np.arange(dframe['lats'].size)
-        # if max(dframe.read) + max(dframe.write) > 9900000:
-        #     b1_data = dframe.read / 1024
-        #     b2_data = dframe.write / 1024
-        # else:
-        #     b1_data = dframe.read
-        #     b2_data = dframe.write
-        # plt.ylabel('IOPS')
+        plt.ylabel('% of all IOPS')
+        plt.xlabel('Completion latency bucket')
 
 
-        plt.title('Aggregated latencyc distribution over {} clients'.format(
+        plt.title('Aggregated latency distribution over {} clients'.format(
             len(self.data['results'])))
         def srt_fct (e):
             if not e[0].isdigit():
@@ -223,12 +219,17 @@ class FioResults(object):
         d = dframe.sort_values(by='sort')
         # d = dframe.reindex(sorted(dframe.lats, key=srt_fct))
         pprint.pprint(d.iloc[:, :-2])
+        legend = {}
         for c in d.iloc[:, :-2]:
-            plt.plot(ind, d[c])
-        plt.xticks(ind, d.columns[-2], rotation=45)
-        # plt.legend((bar2[0], bar1[0]),
-        #            ('write', 'read')).get_frame().set_facecolor('#FFFFFF')
+            line = plt.plot(ind, d[c])
+            legend[line[0]] = c
+        plt.xticks(ind, d['lats'], rotation=45)
+        plt.legend(legend.keys(),
+                   legend.values()).get_frame().set_facecolor('#FFFFFF')
+        fig = plt.gcf()
+        fig.set_size_inches(16, 9)
         plt.savefig('{}/lat_dist.png'.format(self.args.output), bbox_inches='tight')
+        plt.savefig('{}/lat_dist.svg'.format(self.args.output), bbox_inches='tight')
 
 
 def get_fio(path):
