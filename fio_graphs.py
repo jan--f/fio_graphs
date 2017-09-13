@@ -65,9 +65,9 @@ class FioResults(object):
 
         d = {}
         for result in self.data['results']:
-            if 'jobs' in result[0]:
+            if 'jobs' in result:
                 result_key = 'jobs'
-            elif 'client_stats' in result[0]:
+            elif 'client_stats' in result:
                 result_key = 'client_stats'
 
             for job in result[result_key]:
@@ -80,13 +80,13 @@ class FioResults(object):
                     ))
                     continue
                 if job['jobname'] not in d:
-                    d['jobname'] = {'read': 0,
-                                    'write': 0,
-                                    'r_iops': 0,
-                                    'w_iops': 0,
-                                    'lat_us': {},
-                                    'lat_ms': {},
-                                    'count': 0}
+                    d[job['jobname']] = {'read': 0,
+                                         'write': 0,
+                                         'r_iops': 0,
+                                         'w_iops': 0,
+                                         'lat_us': {},
+                                         'lat_ms': {},
+                                         'count': 0}
 
                 d[job['jobname']]['count'] += 1
                 d[job['jobname']]['read'] += job['read']['bw']
