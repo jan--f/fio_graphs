@@ -221,7 +221,7 @@ class FioResults(object):
         pprint.pprint(d.iloc[:, :-2])
         legend = {}
         for c in d.iloc[:, :-2]:
-            line = plt.plot(ind, d[c])
+            line = plt.plot(ind, d[c].cumsum())
             legend[line[0]] = c
         plt.xticks(ind, d['lats'], rotation=45)
         plt.legend(legend.keys(),
