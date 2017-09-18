@@ -192,6 +192,7 @@ class FioResults(object):
         bar2 = plt.bar(ind, b2_data, self.b_width, bottom=b1_data)
         plt.title('Aggregated IOPS over {} clients'.format(
             len(self.data['results'])))
+        plt.yscale('log')
         # adjust xscale if stacked is > 1000000 or so
         plt.xticks(ind, dframe.name, rotation=90)
         plt.legend((bar2[0], bar1[0]),
