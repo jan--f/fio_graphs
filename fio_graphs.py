@@ -4,10 +4,12 @@ import argparse
 import json
 import pprint
 import os
+import re
 import sys
 
 import pandas
 import numpy as np
+import matplotlib.ticker as ticker
 import matplotlib.pyplot as plt
 plt.style.use('ggplot')
 
@@ -37,6 +39,23 @@ class FioResults(object):
         }
         os.makedirs(self.args.output, exist_ok=True)
         self.cache = {}
+        self.meta = {}
+
+    @property
+    def num_clients(self):
+        if self.meta is {}:
+            return 0
+        # TODO fix dirty hack
+        k = list(self.meta.keys())[0]
+        return len(self.meta[k]['clients'])
+
+    @property
+    def num_threads(self):
+        if self.meta is {}:
+            return 0
+        # TODO fix dirty hack
+        k = list(self.meta.keys())[0]
+        return self.meta[k]['count'] / len(self.meta[k]['clients'])
 
     def parse_data(self):
         if self.args.dir:
@@ -79,6 +98,7 @@ class FioResults(object):
                         job['jobname']
                     ))
                     continue
+                # Extract data from json
                 if job['jobname'] not in d:
                     d[job['jobname']] = {'read': 0,
                                          'write': 0,
@@ -86,9 +106,14 @@ class FioResults(object):
                                          'w_iops': 0,
                                          'lat_us': {},
                                          'lat_ms': {},
+                                         'clients': [],
+                                         'options': {},
                                          'count': 0}
+                    d[job['jobname']]['options'] = job['job options']
 
                 d[job['jobname']]['count'] += 1
+                if job['hostname'] not in d[job['jobname']]['clients']:
+                    d[job['jobname']]['clients'].append(job['hostname'])
                 d[job['jobname']]['read'] += job['read']['bw']
                 d[job['jobname']]['write'] += job['write']['bw']
                 d[job['jobname']]['r_iops'] += job['read']['iops']
@@ -104,6 +129,7 @@ class FioResults(object):
                     else:
                         d[job['jobname']]['lat_ms'][k] = job['latency_ms'][k]
 
+        # create data frames from extracted data
         self.cache['bw'] = pandas.DataFrame(data={
             'name': [k for k in d.keys()],
             'read': [v['read'] for v in d.values()],
@@ -114,31 +140,35 @@ class FioResults(object):
             'write': [v['w_iops'] for v in d.values()]})
         lat_data = {'lats': list(d[next(iter(d))]['lat_us'].keys())
                     + [k + '000' for k in d[next(iter(d))]['lat_ms'].keys()]}
+        self.cache['meta_clients'] = {k: v['count'] for k, v in d.items()}
         for name in d.keys():
-            # TODO don't use values (eliminates duplicates?) but iterate over
-            # the keys
             c = []
             for k in d[name]['lat_us'].keys():
                 c.append(d[name]['lat_us'][k] / d[name]['count'])
             for k in d[name]['lat_ms'].keys():
                 c.append(d[name]['lat_ms'][k] / d[name]['count'])
             lat_data[name] = c
-        srt_fct = lambda x: int(str.lstrip(x, '>='))
-        print(sorted(lat_data['lats'], key=srt_fct))
         self.cache['lat_dist'] = pandas.DataFrame(data=lat_data)
 
+        # collect some metadata about the jobs
+        for name in d.keys():
+            self.meta[name] = {
+                'count': d[name]['count'],
+                'clients': d[name]['clients'],
+            }
+
     def get_aggregate_bw(self):
-        if not 'bw' in self.cache:
+        if 'bw' not in self.cache:
             self._aggregate_data()
         return self.cache['bw']
 
     def get_aggregate_iops(self):
-        if not 'iops' in self.cache:
+        if 'iops' not in self.cache:
             self._aggregate_data()
         return self.cache['iops']
 
     def get_aggregate_lat_dist(self):
-        if not 'lat_dist' in self.cache:
+        if 'lat_dist' not in self.cache:
             self._aggregate_data()
         return self.cache['lat_dist']
 
@@ -155,7 +185,7 @@ class FioResults(object):
         plt.clf()
         dframe = self.get_aggregate_bw()
         ind = np.arange(dframe.index.size)
-        if max(dframe.read) + max(dframe.write) > 9900000:
+        if max(dframe.read) + max(dframe.write) > 1000000:
             b1_data = dframe.read / 1024
             b2_data = dframe.write / 1024
             plt.ylabel('Bandwidth (MiB/s)')
@@ -164,17 +194,28 @@ class FioResults(object):
             b2_data = dframe.write
             plt.ylabel('Bandwidth (KiB/s)')
 
+        dframe['sort1'] = dframe['name'].apply(get_workers)
+        dframe['sort2'] = dframe['name'].apply(get_op)
+        dframe['sort3'] = dframe['name'].apply(get_bs)
+
+        dframe = dframe.sort_values(by=['sort1', 'sort2', 'sort3'])
+
+        pprint.pprint(dframe)
+
         bar1 = plt.bar(ind, b1_data, self.b_width)
         bar2 = plt.bar(ind, b2_data, self.b_width, bottom=b1_data)
         plt.title('Aggregated bandwidth over {} clients'.format(
-            len(self.data['results'])))
+            self.num_clients))
         # adjust xscale if stacked is > 1000000 or so
-        plt.xticks(ind, dframe.name, rotation=90)
+        plt.xticks(ind, dframe.name, rotation=-45, ha='left',
+                   rotation_mode='anchor')
+
         plt.legend((bar2[0], bar1[0]),
                    ('write', 'read')).get_frame().set_facecolor('#FFFFFF')
         fig = plt.gcf()
-        fig.set_size_inches(16, 9)
+        fig.set_size_inches(24, 15)
         plt.savefig('{}/bw_aggr.png'.format(self.args.output), bbox_inches='tight')
+        plt.savefig('{}/bw_aggr.svg'.format(self.args.output), bbox_inches='tight')
 
     def aggregate_iops_graph(self):
         plt.clf()
@@ -191,15 +232,17 @@ class FioResults(object):
         bar1 = plt.bar(ind, b1_data, self.b_width)
         bar2 = plt.bar(ind, b2_data, self.b_width, bottom=b1_data)
         plt.title('Aggregated IOPS over {} clients'.format(
-            len(self.data['results'])))
+            self.num_clients))
         plt.yscale('log')
         # adjust xscale if stacked is > 1000000 or so
-        plt.xticks(ind, dframe.name, rotation=90)
+        plt.xticks(ind, dframe.name, rotation=-45, ha='left',
+                   rotation_mode='anchor')
         plt.legend((bar2[0], bar1[0]),
                    ('write', 'read')).get_frame().set_facecolor('#FFFFFF')
         fig = plt.gcf()
         fig.set_size_inches(16, 9)
         plt.savefig('{}/iops_aggr.png'.format(self.args.output), bbox_inches='tight')
+        plt.savefig('{}/iops_aggr.svg'.format(self.args.output), bbox_inches='tight')
 
     def aggregate_lat_dist_graph(self):
         plt.clf()
@@ -210,27 +253,46 @@ class FioResults(object):
 
 
         plt.title('Aggregated latency distribution over {} clients'.format(
-            len(self.data['results'])))
-        def srt_fct (e):
+            self.num_clients))
+        def strip_fct (e):
             if not e[0].isdigit():
                 return int(e.lstrip('>=')) + 1
             else:
                 return int(e)
-        dframe['sort'] = dframe['lats'].apply(srt_fct)
+        dframe['sort'] = dframe['lats'].apply(strip_fct)
         d = dframe.sort_values(by='sort')
-        # d = dframe.reindex(sorted(dframe.lats, key=srt_fct))
         pprint.pprint(d.iloc[:, :-2])
-        legend = {}
+        legend = []
         for c in d.iloc[:, :-2]:
             line = plt.plot(ind, d[c].cumsum())
-            legend[line[0]] = c
+            legend.append((line[0], c))
         plt.xticks(ind, d['lats'], rotation=45)
-        plt.legend(legend.keys(),
-                   legend.values()).get_frame().set_facecolor('#FFFFFF')
+
+        legend = sorted(legend, key=lambda tup: get_bs(tup[1]))
+        legend = sorted(legend, key=lambda tup: get_workers(tup[1]))
+
+        plt.legend([l[0] for l in legend],
+                   [l[1] for l in legend]).get_frame().set_facecolor('#FFFFFF')
         fig = plt.gcf()
         fig.set_size_inches(16, 9)
         plt.savefig('{}/lat_dist.png'.format(self.args.output), bbox_inches='tight')
         plt.savefig('{}/lat_dist.svg'.format(self.args.output), bbox_inches='tight')
+
+
+def get_workers(val):
+    return int(re.search('^\d+', val)[0])
+
+
+def get_bs(val):
+    bs = re.findall('\d+', val)[1]
+    u = re.findall('[k,m]', val)[0]
+    if u == 'm':
+        return int(bs) * 1024
+    return int(bs)
+
+
+def get_op(val):
+    return val.split('_')[-1]
 
 
 def get_fio(path):
