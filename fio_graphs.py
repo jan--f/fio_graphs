@@ -206,7 +206,7 @@ class FioResults(object):
         dframe = self.get_aggregate_lat_dist()
         ind = np.arange(dframe['lats'].size)
         plt.ylabel('% of all IOPS')
-        plt.xlabel('Completion latency bucket')
+        plt.xlabel('Completion latency bucket [μs]')
 
 
         plt.title('Aggregated latency distribution over {} clients'.format(
