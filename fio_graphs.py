@@ -280,7 +280,7 @@ class FioResults(object):
 
 
 def get_workers(val):
-    return int(re.search('^\d+', val)[0])
+    return int(re.findall('^\d+', val)[0])
 
 
 def get_bs(val):
