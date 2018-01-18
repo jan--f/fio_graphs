@@ -9,9 +9,10 @@ import sys
 
 import pandas
 import numpy as np
-import matplotlib.ticker as ticker
+import matplotlib.colors as color
 import matplotlib.pyplot as plt
-plt.style.use('ggplot')
+# plt.style.use('ggplot')
+plt.style.use('bmh')
 
 
 def get_arg_parser():
@@ -31,7 +32,7 @@ class FioResults(object):
 
     def __init__(self, args):
         # two parsing modes: single file, dir with files to aggregate
-        self.b_width = 0.15
+        self.b_width = 0.3
         self.args = args
         self.data = {
             'results': [],
@@ -185,14 +186,6 @@ class FioResults(object):
         plt.clf()
         dframe = self.get_aggregate_bw()
         ind = np.arange(dframe.index.size)
-        if max(dframe.read) + max(dframe.write) > 1000000:
-            b1_data = dframe.read / 1024
-            b2_data = dframe.write / 1024
-            plt.ylabel('Bandwidth (MiB/s)')
-        else:
-            b1_data = dframe.read
-            b2_data = dframe.write
-            plt.ylabel('Bandwidth (KiB/s)')
 
         dframe['sort1'] = dframe['name'].apply(get_workers)
         dframe['sort2'] = dframe['name'].apply(get_op)
@@ -202,16 +195,32 @@ class FioResults(object):
 
         pprint.pprint(dframe)
 
-        bar1 = plt.bar(ind, b1_data, self.b_width)
-        bar2 = plt.bar(ind, b2_data, self.b_width, bottom=b1_data)
+        if max(dframe.read) + max(dframe.write) > 1000000:
+            b1_data = dframe.read / 1024
+            b2_data = dframe.write / 1024
+            plt.ylabel('Bandwidth (MiB/s)')
+        else:
+            b1_data = dframe.read
+            b2_data = dframe.write
+            plt.ylabel('Bandwidth (KiB/s)')
+
+        randr_color = color.to_rgba('C4', 0.8)
+        randw_color = color.to_rgba('C4', 1)
+        seqr_color = color.to_rgba('C3', 0.8)
+        seqw_color = color.to_rgba('C3', 1)
+        colors1 = ([randr_color] * 5 + [seqr_color] * 5) * 4
+        colors2 = ([randw_color] * 5 + [seqw_color] * 5) * 4
+        bar1 = plt.bar(ind, b1_data, self.b_width, color=colors1)
+        bar2 = plt.bar(ind, b2_data, self.b_width, bottom=b1_data,
+                       color=colors2)
         plt.title('Aggregated bandwidth over {} clients'.format(
             self.num_clients))
         # adjust xscale if stacked is > 1000000 or so
         plt.xticks(ind, dframe.name, rotation=-45, ha='left',
                    rotation_mode='anchor')
 
-        plt.legend((bar2[0], bar1[0]),
-                   ('write', 'read')).get_frame().set_facecolor('#FFFFFF')
+        plt.legend((bar2[0], bar1[0], bar2[5], bar1[5]),
+                   ('random write', 'random read', 'seq write','seq read')).get_frame().set_facecolor('#FFFFFF')
         fig = plt.gcf()
         fig.set_size_inches(24, 15)
         plt.savefig('{}/bw_aggr.png'.format(self.args.output), bbox_inches='tight')
@@ -221,24 +230,41 @@ class FioResults(object):
         plt.clf()
         dframe = self.get_aggregate_iops()
         ind = np.arange(dframe.index.size)
+        plt.ylabel('IOPS')
+
+        dframe['sort1'] = dframe['name'].apply(get_workers)
+        dframe['sort2'] = dframe['name'].apply(get_op)
+        dframe['sort3'] = dframe['name'].apply(get_bs)
+
+        dframe = dframe.sort_values(by=['sort1', 'sort2', 'sort3'])
+
+
         if max(dframe.read) + max(dframe.write) > 9900000:
             b1_data = dframe.read / 1024
             b2_data = dframe.write / 1024
         else:
             b1_data = dframe.read
             b2_data = dframe.write
-        plt.ylabel('IOPS')
 
-        bar1 = plt.bar(ind, b1_data, self.b_width)
-        bar2 = plt.bar(ind, b2_data, self.b_width, bottom=b1_data)
+        randr_color = color.to_rgba('C4', 0.8)
+        randw_color = color.to_rgba('C4', 1)
+        seqr_color = color.to_rgba('C3', 0.8)
+        seqw_color = color.to_rgba('C3', 1)
+        colors1 = ([randr_color] * 5 + [seqr_color] * 5) * 4
+        colors2 = ([randw_color] * 5 + [seqw_color] * 5) * 4
+        bar1 = plt.bar(ind, b1_data, self.b_width, color=colors1)
+        bar2 = plt.bar(ind, b2_data, self.b_width, bottom=b1_data,
+                       color=colors2)
         plt.title('Aggregated IOPS over {} clients'.format(
             self.num_clients))
         plt.yscale('log')
         # adjust xscale if stacked is > 1000000 or so
         plt.xticks(ind, dframe.name, rotation=-45, ha='left',
                    rotation_mode='anchor')
-        plt.legend((bar2[0], bar1[0]),
-                   ('write', 'read')).get_frame().set_facecolor('#FFFFFF')
+        plt.legend(
+            (bar2[0], bar1[0], bar2[5], bar1[5]),
+            ('random write', 'random read', 'seq write', 'seq read')
+        ).get_frame().set_facecolor('#FFFFFF')
         fig = plt.gcf()
         fig.set_size_inches(16, 9)
         plt.savefig('{}/iops_aggr.png'.format(self.args.output), bbox_inches='tight')
@@ -259,17 +285,47 @@ class FioResults(object):
                 return int(e.lstrip('>=')) + 1
             else:
                 return int(e)
+
+        # TODO add colour gradient based on number of workes maybe using
+        # colormaps? just darker -> more workers...maybe use num workers as
+        # darkening factor or so
+        def get_color(c):
+            bs = get_bs(c)
+            if bs == 4:
+                return 'C1'
+            elif bs == 64:
+                return 'C2'
+            elif bs == 1024:
+                return 'C3'
+            elif bs == 4096:
+                return 'C4'
+            else:
+                return 'C5'
+
+        def get_alpha(c):
+            w = get_workers(c)
+            if w == 1:
+                return 0.4
+            if w == 4:
+                return 0.6
+            if w == 8:
+                return 0.8
+            if w == 16:
+                return 1
+
         dframe['sort'] = dframe['lats'].apply(strip_fct)
         d = dframe.sort_values(by='sort')
-        pprint.pprint(d.iloc[:, :-2])
+        pprint.pprint(d)
         legend = []
         for c in d.iloc[:, :-2]:
-            line = plt.plot(ind, d[c].cumsum())
+            a = get_alpha(c)
+            col = color.to_rgba(get_color(c), a)
+            line = plt.plot(ind, d[c].cumsum(), color=col)
             legend.append((line[0], c))
         plt.xticks(ind, d['lats'], rotation=45)
 
-        legend = sorted(legend, key=lambda tup: get_bs(tup[1]))
         legend = sorted(legend, key=lambda tup: get_workers(tup[1]))
+        legend = sorted(legend, key=lambda tup: get_bs(tup[1]))
 
         plt.legend([l[0] for l in legend],
                    [l[1] for l in legend]).get_frame().set_facecolor('#FFFFFF')
