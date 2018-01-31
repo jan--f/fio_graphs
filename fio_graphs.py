@@ -204,7 +204,11 @@ class FioResults(object):
         dframe['sort2'] = dframe['name'].apply(get_op)
         dframe['sort3'] = dframe['name'].apply(get_bs)
 
-        dframe = dframe.sort_values(by=['sort1', 'sort2', 'sort3'])
+        try:
+            dframe = dframe.sort_values(by=['sort1', 'sort2', 'sort3'])
+        except AttributeError:
+            # sort_values only available with pandas > 0.17
+            print('WARNING: failed to sort aggregated values!')
 
         pprint.pprint(dframe)
 
@@ -217,12 +221,19 @@ class FioResults(object):
             b2_data = dframe.write
             plt.ylabel('Bandwidth (KiB/s)')
 
-        randr_color = color.to_rgba('C4', 0.8)
-        randw_color = color.to_rgba('C4', 1)
-        seqr_color = color.to_rgba('C3', 0.8)
-        seqw_color = color.to_rgba('C3', 1)
-        colors1 = ([randr_color] * 5 + [seqr_color] * 5) * 4
-        colors2 = ([randw_color] * 5 + [seqw_color] * 5) * 4
+        try:
+            # to_rgba only available in recent matplotlib versions
+            randr_color = color.to_rgba('C4', 0.8)
+            randw_color = color.to_rgba('C4', 1)
+            seqr_color = color.to_rgba('C3', 0.8)
+            seqw_color = color.to_rgba('C3', 1)
+            colors1 = ([randr_color] * 5 + [seqr_color] * 5) * 4
+            colors2 = ([randw_color] * 5 + [seqw_color] * 5) * 4
+        except AttributeError:
+            colors1 = None
+            colors2 = None
+            print('WARNING: using default colours')
+
         bar1 = plt.bar(ind, b1_data, self.b_width, color=colors1)
         bar2 = plt.bar(ind, b2_data, self.b_width, bottom=b1_data,
                        color=colors2)
@@ -249,8 +260,11 @@ class FioResults(object):
         dframe['sort2'] = dframe['name'].apply(get_op)
         dframe['sort3'] = dframe['name'].apply(get_bs)
 
-        dframe = dframe.sort_values(by=['sort1', 'sort2', 'sort3'])
-
+        try:
+            dframe = dframe.sort_values(by=['sort1', 'sort2', 'sort3'])
+        except AttributeError:
+            # sort_values only available with pandas > 0.17
+            print('WARNING: failed to sort aggregated values!')
 
         if max(dframe.read) + max(dframe.write) > 9900000:
             b1_data = dframe.read / 1024
@@ -259,12 +273,19 @@ class FioResults(object):
             b1_data = dframe.read
             b2_data = dframe.write
 
-        randr_color = color.to_rgba('C4', 0.8)
-        randw_color = color.to_rgba('C4', 1)
-        seqr_color = color.to_rgba('C3', 0.8)
-        seqw_color = color.to_rgba('C3', 1)
-        colors1 = ([randr_color] * 5 + [seqr_color] * 5) * 4
-        colors2 = ([randw_color] * 5 + [seqw_color] * 5) * 4
+        try:
+            # to_rgba only available in recent matplotlib versions
+            randr_color = color.to_rgba('C4', 0.8)
+            randw_color = color.to_rgba('C4', 1)
+            seqr_color = color.to_rgba('C3', 0.8)
+            seqw_color = color.to_rgba('C3', 1)
+            colors1 = ([randr_color] * 5 + [seqr_color] * 5) * 4
+            colors2 = ([randw_color] * 5 + [seqw_color] * 5) * 4
+        except AttributeError:
+            colors1 = None
+            colors2 = None
+            print('WARNING: using default colours')
+
         bar1 = plt.bar(ind, b1_data, self.b_width, color=colors1)
         bar2 = plt.bar(ind, b2_data, self.b_width, bottom=b1_data,
                        color=colors2)
@@ -327,12 +348,22 @@ class FioResults(object):
                 return 1
 
         dframe['sort'] = dframe['lats'].apply(strip_fct)
-        d = dframe.sort_values(by='sort')
+        try:
+            d = dframe.sort_values(by='sort')
+        except AttributeError:
+            # sort_values only available with pandas > 0.17
+            d = dframe
+            print('WARNING: failed to sort aggregated values')
         pprint.pprint(d)
         legend = []
         for c in d.iloc[:, :-2]:
             a = get_alpha(c)
-            col = color.to_rgba(get_color(c), a)
+            try:
+                # to_rgba only available in recent matplotlib versions
+                col = color.to_rgba(get_color(c), a)
+            except AttributeError:
+                col = None
+                print('WARNING: using default colours')
             line = plt.plot(ind, d[c].cumsum(), color=col)
             legend.append((line[0], c))
         plt.xticks(ind, d['lats'], rotation=45)
