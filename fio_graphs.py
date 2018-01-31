@@ -72,6 +72,19 @@ class FioResults(object):
 
     def _parse_file(self, path):
         with open(path) as file_:
+            # fio adds a bunch of crud to the start of its json output. Skip it,
+            # otherwise json.load() will fail
+            while True:
+                pos = file_.tell()
+                maybe_json = file_.readline()
+                if pos == file_.tell() or maybe_json.startswith("{"):
+                    file_.seek(pos)
+                    break
+
+            if maybe_json.startswith("{") == False:
+                print('IGNORING file {}: no valid JSON'.format(path))
+                return
+
             try:
                 d = json.load(file_)
                 self.data['results'].append(d)
