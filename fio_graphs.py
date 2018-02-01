@@ -25,6 +25,10 @@ def get_arg_parser():
         help='Read output files from a directory and consider files to be of the same run')
     p.add_argument('-o', '--output', help='output directory for graphs',
                    default='graphs')
+    p.add_argument('-s', '--svg', action="store_true", default=False,
+                   help='Generate graphs in SVG format only')
+    p.add_argument('-p', '--png', action="store_true", default=False,
+                   help='Generate graphs in PNG format only')
     return p
 
 
@@ -247,8 +251,12 @@ class FioResults(object):
                    ('random write', 'random read', 'seq write','seq read')).get_frame().set_facecolor('#FFFFFF')
         fig = plt.gcf()
         fig.set_size_inches(24, 15)
-        plt.savefig('{}/bw_aggr.png'.format(self.args.output), bbox_inches='tight')
-        plt.savefig('{}/bw_aggr.svg'.format(self.args.output), bbox_inches='tight')
+        if self.args.png:
+            plt.savefig('{}/bw_aggr.png'.format(self.args.output),
+                        bbox_inches='tight')
+        if self.args.svg:
+            plt.savefig('{}/bw_aggr.svg'.format(self.args.output),
+                        bbox_inches='tight')
 
     def aggregate_iops_graph(self):
         plt.clf()
@@ -301,8 +309,12 @@ class FioResults(object):
         ).get_frame().set_facecolor('#FFFFFF')
         fig = plt.gcf()
         fig.set_size_inches(16, 9)
-        plt.savefig('{}/iops_aggr.png'.format(self.args.output), bbox_inches='tight')
-        plt.savefig('{}/iops_aggr.svg'.format(self.args.output), bbox_inches='tight')
+        if self.args.png:
+            plt.savefig('{}/iops_aggr.png'.format(self.args.output),
+                        bbox_inches='tight')
+        if self.args.svg:
+            plt.savefig('{}/iops_aggr.svg'.format(self.args.output),
+                        bbox_inches='tight')
 
     def aggregate_lat_dist_graph(self):
         plt.clf()
@@ -375,8 +387,12 @@ class FioResults(object):
                    [l[1] for l in legend]).get_frame().set_facecolor('#FFFFFF')
         fig = plt.gcf()
         fig.set_size_inches(16, 9)
-        plt.savefig('{}/lat_dist.png'.format(self.args.output), bbox_inches='tight')
-        plt.savefig('{}/lat_dist.svg'.format(self.args.output), bbox_inches='tight')
+        if self.args.png:
+            plt.savefig('{}/lat_dist.png'.format(self.args.output),
+                        bbox_inches='tight')
+        if self.args.svg:
+            plt.savefig('{}/lat_dist.svg'.format(self.args.output),
+                        bbox_inches='tight')
 
 
 def get_workers(val):
@@ -411,6 +427,11 @@ def main():
         if os.path.isdir(args.path):
             raise a_parser.ArgumentError(('-d was not passed but path is a ',
                                          'directory'))
+
+    # output in all formats if none were explicitly selected
+    if args.svg == False and args.png == False:
+        args.svg = True
+        args.png = True
 
     results = FioResults(args)
     results.parse_data()
