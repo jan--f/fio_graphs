@@ -16,4 +16,4 @@ Requires python libraries
 * numpy
 
 # Running
-Run ``./fio_plots.py --help``
+Run ``./fio_graphs.py --help``

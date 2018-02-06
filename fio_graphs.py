@@ -25,6 +25,10 @@ def get_arg_parser():
         help='Read output files from a directory and consider files to be of the same run')
     p.add_argument('-o', '--output', help='output directory for graphs',
                    default='graphs')
+    p.add_argument('-s', '--svg', action="store_true", default=False,
+                   help='Generate graphs in SVG format only')
+    p.add_argument('-p', '--png', action="store_true", default=False,
+                   help='Generate graphs in PNG format only')
     return p
 
 
@@ -72,6 +76,19 @@ class FioResults(object):
 
     def _parse_file(self, path):
         with open(path) as file_:
+            # fio adds a bunch of crud to the start of its json output. Skip it,
+            # otherwise json.load() will fail
+            while True:
+                pos = file_.tell()
+                maybe_json = file_.readline()
+                if pos == file_.tell() or maybe_json.startswith("{"):
+                    file_.seek(pos)
+                    break
+
+            if maybe_json.startswith("{") == False:
+                print('IGNORING file {}: no valid JSON'.format(path))
+                return
+
             try:
                 d = json.load(file_)
                 self.data['results'].append(d)
@@ -191,7 +208,11 @@ class FioResults(object):
         dframe['sort2'] = dframe['name'].apply(get_op)
         dframe['sort3'] = dframe['name'].apply(get_bs)
 
-        dframe = dframe.sort_values(by=['sort1', 'sort2', 'sort3'])
+        try:
+            dframe = dframe.sort_values(by=['sort1', 'sort2', 'sort3'])
+        except AttributeError:
+            # sort_values only available with pandas > 0.17
+            print('WARNING: failed to sort aggregated values!')
 
         pprint.pprint(dframe)
 
@@ -204,12 +225,19 @@ class FioResults(object):
             b2_data = dframe.write
             plt.ylabel('Bandwidth (KiB/s)')
 
-        randr_color = color.to_rgba('C4', 0.8)
-        randw_color = color.to_rgba('C4', 1)
-        seqr_color = color.to_rgba('C3', 0.8)
-        seqw_color = color.to_rgba('C3', 1)
-        colors1 = ([randr_color] * 5 + [seqr_color] * 5) * 4
-        colors2 = ([randw_color] * 5 + [seqw_color] * 5) * 4
+        try:
+            # to_rgba only available in recent matplotlib versions
+            randr_color = color.to_rgba('C4', 0.8)
+            randw_color = color.to_rgba('C4', 1)
+            seqr_color = color.to_rgba('C3', 0.8)
+            seqw_color = color.to_rgba('C3', 1)
+            colors1 = ([randr_color] * 5 + [seqr_color] * 5) * 4
+            colors2 = ([randw_color] * 5 + [seqw_color] * 5) * 4
+        except AttributeError:
+            colors1 = None
+            colors2 = None
+            print('WARNING: using default colours')
+
         bar1 = plt.bar(ind, b1_data, self.b_width, color=colors1)
         bar2 = plt.bar(ind, b2_data, self.b_width, bottom=b1_data,
                        color=colors2)
@@ -223,8 +251,12 @@ class FioResults(object):
                    ('random write', 'random read', 'seq write','seq read')).get_frame().set_facecolor('#FFFFFF')
         fig = plt.gcf()
         fig.set_size_inches(24, 15)
-        plt.savefig('{}/bw_aggr.png'.format(self.args.output), bbox_inches='tight')
-        plt.savefig('{}/bw_aggr.svg'.format(self.args.output), bbox_inches='tight')
+        if self.args.png:
+            plt.savefig('{}/bw_aggr.png'.format(self.args.output),
+                        bbox_inches='tight')
+        if self.args.svg:
+            plt.savefig('{}/bw_aggr.svg'.format(self.args.output),
+                        bbox_inches='tight')
 
     def aggregate_iops_graph(self):
         plt.clf()
@@ -236,8 +268,11 @@ class FioResults(object):
         dframe['sort2'] = dframe['name'].apply(get_op)
         dframe['sort3'] = dframe['name'].apply(get_bs)
 
-        dframe = dframe.sort_values(by=['sort1', 'sort2', 'sort3'])
-
+        try:
+            dframe = dframe.sort_values(by=['sort1', 'sort2', 'sort3'])
+        except AttributeError:
+            # sort_values only available with pandas > 0.17
+            print('WARNING: failed to sort aggregated values!')
 
         if max(dframe.read) + max(dframe.write) > 9900000:
             b1_data = dframe.read / 1024
@@ -246,12 +281,19 @@ class FioResults(object):
             b1_data = dframe.read
             b2_data = dframe.write
 
-        randr_color = color.to_rgba('C4', 0.8)
-        randw_color = color.to_rgba('C4', 1)
-        seqr_color = color.to_rgba('C3', 0.8)
-        seqw_color = color.to_rgba('C3', 1)
-        colors1 = ([randr_color] * 5 + [seqr_color] * 5) * 4
-        colors2 = ([randw_color] * 5 + [seqw_color] * 5) * 4
+        try:
+            # to_rgba only available in recent matplotlib versions
+            randr_color = color.to_rgba('C4', 0.8)
+            randw_color = color.to_rgba('C4', 1)
+            seqr_color = color.to_rgba('C3', 0.8)
+            seqw_color = color.to_rgba('C3', 1)
+            colors1 = ([randr_color] * 5 + [seqr_color] * 5) * 4
+            colors2 = ([randw_color] * 5 + [seqw_color] * 5) * 4
+        except AttributeError:
+            colors1 = None
+            colors2 = None
+            print('WARNING: using default colours')
+
         bar1 = plt.bar(ind, b1_data, self.b_width, color=colors1)
         bar2 = plt.bar(ind, b2_data, self.b_width, bottom=b1_data,
                        color=colors2)
@@ -267,8 +309,12 @@ class FioResults(object):
         ).get_frame().set_facecolor('#FFFFFF')
         fig = plt.gcf()
         fig.set_size_inches(16, 9)
-        plt.savefig('{}/iops_aggr.png'.format(self.args.output), bbox_inches='tight')
-        plt.savefig('{}/iops_aggr.svg'.format(self.args.output), bbox_inches='tight')
+        if self.args.png:
+            plt.savefig('{}/iops_aggr.png'.format(self.args.output),
+                        bbox_inches='tight')
+        if self.args.svg:
+            plt.savefig('{}/iops_aggr.svg'.format(self.args.output),
+                        bbox_inches='tight')
 
     def aggregate_lat_dist_graph(self):
         plt.clf()
@@ -314,12 +360,22 @@ class FioResults(object):
                 return 1
 
         dframe['sort'] = dframe['lats'].apply(strip_fct)
-        d = dframe.sort_values(by='sort')
+        try:
+            d = dframe.sort_values(by='sort')
+        except AttributeError:
+            # sort_values only available with pandas > 0.17
+            d = dframe
+            print('WARNING: failed to sort aggregated values')
         pprint.pprint(d)
         legend = []
         for c in d.iloc[:, :-2]:
             a = get_alpha(c)
-            col = color.to_rgba(get_color(c), a)
+            try:
+                # to_rgba only available in recent matplotlib versions
+                col = color.to_rgba(get_color(c), a)
+            except AttributeError:
+                col = None
+                print('WARNING: using default colours')
             line = plt.plot(ind, d[c].cumsum(), color=col)
             legend.append((line[0], c))
         plt.xticks(ind, d['lats'], rotation=45)
@@ -331,12 +387,16 @@ class FioResults(object):
                    [l[1] for l in legend]).get_frame().set_facecolor('#FFFFFF')
         fig = plt.gcf()
         fig.set_size_inches(16, 9)
-        plt.savefig('{}/lat_dist.png'.format(self.args.output), bbox_inches='tight')
-        plt.savefig('{}/lat_dist.svg'.format(self.args.output), bbox_inches='tight')
+        if self.args.png:
+            plt.savefig('{}/lat_dist.png'.format(self.args.output),
+                        bbox_inches='tight')
+        if self.args.svg:
+            plt.savefig('{}/lat_dist.svg'.format(self.args.output),
+                        bbox_inches='tight')
 
 
 def get_workers(val):
-    return int(re.search('^\d+', val)[0])
+    return int(re.search('^\d+', val).group(0))
 
 
 def get_bs(val):
@@ -367,6 +427,11 @@ def main():
         if os.path.isdir(args.path):
             raise a_parser.ArgumentError(('-d was not passed but path is a ',
                                          'directory'))
+
+    # output in all formats if none were explicitly selected
+    if args.svg == False and args.png == False:
+        args.svg = True
+        args.png = True
 
     results = FioResults(args)
     results.parse_data()
