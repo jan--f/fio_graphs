@@ -374,7 +374,7 @@ class FioResults(object):
             print('WARNING: failed to sort aggregated values')
         pprint.pprint(d)
         legend = []
-        for c in d.iloc[:, :-2]:
+        for c in d.iloc[:, 1:-1]:
             a = get_alpha(c)
             try:
                 # to_rgba only available in recent matplotlib versions
