@@ -116,36 +116,37 @@ class FioResults(object):
                         job['jobname']
                     ))
                     continue
+                jobname = (job['jobname'], re.sub("./", "", job['jobname'], 1))
                 # Extract data from json
-                if job['jobname'] not in d:
-                    d[job['jobname']] = {'read': 0,
-                                         'write': 0,
-                                         'r_iops': 0,
-                                         'w_iops': 0,
-                                         'lat_us': {},
-                                         'lat_ms': {},
-                                         'clients': [],
-                                         'options': {},
-                                         'count': 0}
-                    d[job['jobname']]['options'] = job['job options']
+                if jobname[1] not in d:
+                    d[jobname[1]] = {'read': 0,
+                                     'write': 0,
+                                     'r_iops': 0,
+                                     'w_iops': 0,
+                                     'lat_us': {},
+                                     'lat_ms': {},
+                                     'clients': [],
+                                     'options': {},
+                                     'count': 0}
+                    d[jobname[1]]['options'] = job['job options']
 
-                d[job['jobname']]['count'] += 1
-                if job['hostname'] not in d[job['jobname']]['clients']:
-                    d[job['jobname']]['clients'].append(job['hostname'])
-                d[job['jobname']]['read'] += job['read']['bw']
-                d[job['jobname']]['write'] += job['write']['bw']
-                d[job['jobname']]['r_iops'] += job['read']['iops']
-                d[job['jobname']]['w_iops'] += job['write']['iops']
+                d[jobname[1]]['count'] += 1
+                if job['hostname'] not in d[jobname[1]]['clients']:
+                    d[jobname[1]]['clients'].append(job['hostname'])
+                d[jobname[1]]['read'] += job['read']['bw']
+                d[jobname[1]]['write'] += job['write']['bw']
+                d[jobname[1]]['r_iops'] += job['read']['iops']
+                d[jobname[1]]['w_iops'] += job['write']['iops']
                 for k, v in job['latency_us'].items():
-                    if k in d[job['jobname']]['lat_us']:
-                        d[job['jobname']]['lat_us'][k] += job['latency_us'][k]
+                    if k in d[jobname[1]]['lat_us']:
+                        d[jobname[1]]['lat_us'][k] += job['latency_us'][k]
                     else:
-                        d[job['jobname']]['lat_us'][k] = job['latency_us'][k]
+                        d[jobname[1]]['lat_us'][k] = job['latency_us'][k]
                 for k, v in job['latency_ms'].items():
-                    if k in d[job['jobname']]['lat_ms']:
-                        d[job['jobname']]['lat_ms'][k] += job['latency_ms'][k]
+                    if k in d[jobname[1]]['lat_ms']:
+                        d[jobname[1]]['lat_ms'][k] += job['latency_ms'][k]
                     else:
-                        d[job['jobname']]['lat_ms'][k] = job['latency_ms'][k]
+                        d[jobname[1]]['lat_ms'][k] = job['latency_ms'][k]
 
         # create data frames from extracted data
         self.cache['bw'] = pandas.DataFrame(data={
@@ -194,10 +195,15 @@ class FioResults(object):
         lats = self.get_aggregate_lat_dist()
         print('aggregate latency distribution')
         pprint.pprint(lats)
+        lats.to_csv('{}/lats.csv'.format(self.args.output, sep='\t'))
         print('aggregate bandwidth')
-        pprint.pprint(self.get_aggregate_bw())
+        bw = self.get_aggregate_bw()
+        pprint.pprint(bw)
+        bw.to_csv('{}/bw.csv'.format(self.args.output, sep='\t'))
+        iops = self.get_aggregate_iops()
         print('aggregate iops')
-        pprint.pprint(self.get_aggregate_iops())
+        pprint.pprint(iops)
+        iops.to_csv('{}/iops.csv'.format(self.args.output, sep='\t'))
 
     def aggregate_bw_graph(self):
         plt.clf()
