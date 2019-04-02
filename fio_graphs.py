@@ -237,8 +237,8 @@ class FioResults(object):
             randw_color = color.to_rgba('C4', 1)
             seqr_color = color.to_rgba('C3', 0.8)
             seqw_color = color.to_rgba('C3', 1)
-            colors1 = ([randr_color] * 5 + [seqr_color] * 5) * 4
-            colors2 = ([randw_color] * 5 + [seqw_color] * 5) * 4
+            colors1 = ([randr_color] * 4 + [seqr_color] * 4) * 4
+            colors2 = ([randw_color] * 4 + [seqw_color] * 4) * 4
         except AttributeError:
             colors1 = None
             colors2 = None
@@ -293,8 +293,8 @@ class FioResults(object):
             randw_color = color.to_rgba('C4', 1)
             seqr_color = color.to_rgba('C3', 0.8)
             seqw_color = color.to_rgba('C3', 1)
-            colors1 = ([randr_color] * 5 + [seqr_color] * 5) * 4
-            colors2 = ([randw_color] * 5 + [seqw_color] * 5) * 4
+            colors1 = ([randr_color] * 4 + [seqr_color] * 4) * 4
+            colors2 = ([randw_color] * 4 + [seqw_color] * 4) * 4
         except AttributeError:
             colors1 = None
             colors2 = None
