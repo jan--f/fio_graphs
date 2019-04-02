@@ -123,6 +123,7 @@ class FioResults(object):
                                      'write': 0,
                                      'r_iops': 0,
                                      'w_iops': 0,
+                                     'lat_ns': {},
                                      'lat_us': {},
                                      'lat_ms': {},
                                      'clients': [],
@@ -137,6 +138,12 @@ class FioResults(object):
                 d[jobname[1]]['write'] += job['write']['bw']
                 d[jobname[1]]['r_iops'] += job['read']['iops']
                 d[jobname[1]]['w_iops'] += job['write']['iops']
+                for k, v in job['latency_ns'].items():
+                    key = '<1'
+                    if key in d[jobname[1]]['lat_us']:
+                        d[jobname[1]]['lat_us'][key] += job['latency_ns'][k]
+                    else:
+                        d[jobname[1]]['lat_us'][key] = job['latency_ns'][k]
                 for k, v in job['latency_us'].items():
                     if k in d[jobname[1]]['lat_us']:
                         d[jobname[1]]['lat_us'][k] += job['latency_us'][k]
@@ -329,12 +336,15 @@ class FioResults(object):
         plt.ylabel('% of all IOPS')
         plt.xlabel('Completion latency bucket [μs]')
 
-
         plt.title('Aggregated latency distribution over {} clients'.format(
             self.num_clients))
-        def strip_fct (e):
+
+        def strip_fct(e):
             if not e[0].isdigit():
-                return int(e.lstrip('>=')) + 1
+                if e[0] == '>':
+                    return int(e.lstrip('>=')) + 1
+                elif e[0] == '<':
+                    return int(e.lstrip('<'))
             else:
                 return int(e)
 
