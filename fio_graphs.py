@@ -174,6 +174,9 @@ class FioResults(object):
             for k in d[name]['lat_ms'].keys():
                 c.append(d[name]['lat_ms'][k] / d[name]['count'])
             lat_data[name] = c
+            if name != 'lats' and sum(c) != 100:
+                c[-1] = 100 - sum(c)
+        print(lat_data)
         self.cache['lat_dist'] = pandas.DataFrame(data=lat_data)
 
         # collect some metadata about the jobs
@@ -222,7 +225,7 @@ class FioResults(object):
         dframe['sort3'] = dframe['name'].apply(get_bs)
 
         try:
-            dframe = dframe.sort_values(by=['sort1', 'sort2', 'sort3'])
+            dframe = dframe.sort_values(by=['sort3', 'sort2', 'sort1'])
         except AttributeError:
             # sort_values only available with pandas > 0.17
             print('WARNING: failed to sort aggregated values!')
@@ -244,8 +247,8 @@ class FioResults(object):
             randw_color = color.to_rgba('C4', 1)
             seqr_color = color.to_rgba('C3', 0.8)
             seqw_color = color.to_rgba('C3', 1)
-            colors1 = ([randr_color] * 4 + [seqr_color] * 4) * 4
-            colors2 = ([randw_color] * 4 + [seqw_color] * 4) * 4
+            colors1 = ([randr_color] * 4 + [seqr_color] * 4) * 1
+            colors2 = ([randw_color] * 4 + [seqw_color] * 4) * 1
         except AttributeError:
             colors1 = None
             colors2 = None
@@ -261,7 +264,7 @@ class FioResults(object):
                    rotation_mode='anchor')
 
         plt.legend((bar2[0], bar1[0], bar2[5], bar1[5]),
-                   ('random write', 'random read', 'seq write','seq read')).get_frame().set_facecolor('#FFFFFF')
+                   ('4k write', '4k read', '4m write', '4m read')).get_frame().set_facecolor('#FFFFFF')
         fig = plt.gcf()
         fig.set_size_inches(24, 15)
         if self.args.png:
@@ -282,7 +285,7 @@ class FioResults(object):
         dframe['sort3'] = dframe['name'].apply(get_bs)
 
         try:
-            dframe = dframe.sort_values(by=['sort1', 'sort2', 'sort3'])
+            dframe = dframe.sort_values(by=['sort3', 'sort2', 'sort1'])
         except AttributeError:
             # sort_values only available with pandas > 0.17
             print('WARNING: failed to sort aggregated values!')
@@ -300,8 +303,8 @@ class FioResults(object):
             randw_color = color.to_rgba('C4', 1)
             seqr_color = color.to_rgba('C3', 0.8)
             seqw_color = color.to_rgba('C3', 1)
-            colors1 = ([randr_color] * 4 + [seqr_color] * 4) * 4
-            colors2 = ([randw_color] * 4 + [seqw_color] * 4) * 4
+            colors1 = ([randr_color] * 4 + [seqr_color] * 4) * 1
+            colors2 = ([randw_color] * 4 + [seqw_color] * 4) * 1
         except AttributeError:
             colors1 = None
             colors2 = None
@@ -318,7 +321,7 @@ class FioResults(object):
                    rotation_mode='anchor')
         plt.legend(
             (bar2[0], bar1[0], bar2[5], bar1[5]),
-            ('random write', 'random read', 'seq write', 'seq read')
+            ('4k write', '4k read', '4m write', '4m read')
         ).get_frame().set_facecolor('#FFFFFF')
         fig = plt.gcf()
         fig.set_size_inches(16, 9)
@@ -354,13 +357,13 @@ class FioResults(object):
         def get_color(c):
             bs = get_bs(c)
             if bs == 4:
-                return 'C1'
+                return 'C4'
             elif bs == 64:
                 return 'C2'
             elif bs == 1024:
                 return 'C3'
             elif bs == 4096:
-                return 'C4'
+                return 'C3'
             else:
                 return 'C5'
 
